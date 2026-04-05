@@ -1,0 +1,21 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+
+COPY package.json pnpm-lock.yaml turbo.json ./
+COPY packages/*/package.json packages/
+COPY apps/api/package.json apps/api/
+
+RUN pnpm install --frozen-lockfile --filter @nexus/api...
+
+COPY apps/api ./apps/api
+COPY packages/*/src ./packages/*/src
+COPY packages/db/prisma ./packages/db/prisma
+
+RUN pnpm --filter @nexus/api build
+
+EXPOSE 3001
+
+CMD ["node", "apps/api/dist/index.js"]

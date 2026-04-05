@@ -1,0 +1,19 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+
+COPY package.json pnpm-lock.yaml turbo.json ./
+COPY packages/*/package.json packages/
+COPY apps/web/package.json apps/web/
+
+RUN pnpm install --frozen-lockfile --filter @nexus/web...
+
+COPY apps/web ./apps/web
+
+RUN pnpm --filter @nexus/web build
+
+EXPOSE 3000
+
+CMD ["pnpm", "--filter", "@nexus/web", "start"]

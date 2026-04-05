@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: nexusos_postgres_prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-password}
+      POSTGRES_DB: ${POSTGRES_DB:-nexusos_prod}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: nexusos_redis_prod
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_prod:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-change-this-password}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: nexusos_api_prod
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-change-this-password}@postgres:5432/${POSTGRES_DB:-nexusos_prod}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-change-this-password}@redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      NODE_ENV: production
+      API_URL: https://api.nexusos.com
+      CORS_ORIGIN: https://app.nexusos.com
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: nexusos_web_prod
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: https://api.nexusos.com
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: nexusos_nginx_prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/docker/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+      - web
+    restart: unless-stopped
+
+volumes:
+  postgres_data_prod:
+  redis_data_prod:

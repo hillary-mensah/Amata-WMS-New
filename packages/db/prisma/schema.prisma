@@ -1,0 +1,937 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ORG_ADMIN
+  BRANCH_MANAGER
+  CASHIER
+  WAREHOUSE
+  AUDITOR
+}
+
+enum DeviceStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum SaleStatus {
+  COMPLETED
+  VOIDED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  MOMO
+  MIXED
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model Organisation {
+  id          String   @id @default(uuid())
+  name        String
+  tin         String   @unique
+  vatNumber   String?
+  address     String?
+  phone       String?
+  email       String?
+  logoUrl     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  branches    Branch[]
+  products    Product[]
+  categories  Category[]
+  devices     Device[]
+  sales       Sale[]
+  productBatches ProductBatch[]
+  expiryAlerts ExpiryAlert[]
+  syncConflicts SyncConflict[]
+  anomalyRules  AnomalyRule[]
+  anomalies     Anomaly[]
+  printers     Printer[]
+  webhookConfigs WebhookConfig[]
+  reconciliations PaymentReconciliation[]
+  auditLogs   AuditLog[]
+  retentionPolicies DataRetentionPolicy[]
+  archives    DataArchive[]
+  featureFlags FeatureFlag[]
+  deployments Deployment[]
+
+  @@index([tin])
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  role           Role      @default(CASHIER)
+  pin            String?   @db.Char(64)
+  pinSalt        String?
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  branchId       String?
+  branch         Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  sales          Sale[]
+  salesVoided    Sale[]    @relation("VoidedByUser")
+  auditLogs      AuditLog[]
+  anomalies      Anomaly[]
+  refreshTokens  RefreshToken[]
+  tokenRevocations TokenRevocation[]
+
+  @@index([email])
+  @@index([organisationId])
+  @@index([branchId])
+}
+
+model Branch {
+  id             String    @id @default(uuid())
+  name           String
+  code           String    @unique
+  address        String?
+  phone          String?
+  email          String?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  users          User[]
+  products       Product[]
+  sales          Sale[]
+  inventories    Inventory[]
+  devices        Device[]
+  expiryAlerts   ExpiryAlert[]
+  printers       Printer[]
+
+  @@index([organisationId])
+  @@index([code])
+}
+
+model Category {
+  id             String    @id @default(uuid())
+  name           String
+  description    String?
+  parentId       String?
+  parent         Category? @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children       Category[] @relation("CategoryHierarchy")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  products       Product[]
+
+  @@index([organisationId])
+  @@index([parentId])
+}
+
+model Product {
+  id             String    @id @default(uuid())
+  sku            String    @unique
+  barcode        String?
+  name           String
+  description    String?
+  unitPrice      Decimal   @db.Decimal(12, 2)
+  costPrice      Decimal?  @db.Decimal(12, 2)
+  imageUrl       String?
+  isActive       Boolean   @default(true)
+  isTrackStock   Boolean   @default(true)
+  minStock       Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  categoryId     String?
+  category       Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  branchId       String?
+  branch         Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  saleItems      SaleItem[]
+  inventories    Inventory[]
+  adjustments    InventoryAdjustment[]
+  transfers      InventoryTransferItem[]
+  expiryAlerts   ExpiryAlert[]
+  batches        ProductBatch[]
+
+  @@index([sku])
+  @@index([barcode])
+  @@index([organisationId])
+  @@index([categoryId])
+  @@index([branchId])
+}
+
+model Inventory {
+  id               String    @id @default(uuid())
+  quantity         Int       @default(0)
+  computedQuantity Int       @default(0)
+  reorderLevel     Int       @default(10)
+  lastRestockedAt  DateTime?
+  lastComputedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  productId        String
+  product          Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  branchId         String
+  branch           Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  batches          ProductBatch[]
+  discrepancies    InventoryDiscrepancy[]
+
+  @@unique([productId, branchId])
+  @@index([branchId])
+  @@index([productId])
+}
+
+model InventoryDiscrepancy {
+  id              String            @id @default(uuid())
+  type            DiscrepancyType
+  actualQuantity  Int
+  expectedQuantity Int
+  difference      Int
+  status          DiscrepancyStatus @default(PENDING)
+  notes           String?
+  resolvedAt      DateTime?
+  createdAt       DateTime          @default(now())
+
+  inventoryId     String
+  inventory       Inventory         @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  resolvedById     String?
+
+  @@index([inventoryId])
+  @@index([status])
+  @@index([type])
+}
+
+enum DiscrepancyType {
+  THEFT
+  DAMAGE
+  EXPIRY
+  SPOILAGE
+  SYNC_ERROR
+  MANUAL_ADJUSTMENT
+  UNKNOWN
+}
+
+enum DiscrepancyStatus {
+  PENDING
+  INVESTIGATING
+  RESOLVED
+  WRITE_OFF
+}
+
+enum ExpiryStatus {
+  FRESH
+  NEAR_EXPIRY
+  EXPIRED
+  SOLD_OUT
+}
+
+enum AlertStatus {
+  PENDING
+  DISMISSED
+  RESOLVED
+}
+
+model ProductBatch {
+  id              String        @id @default(uuid())
+  batchNumber     String        @unique
+  quantity        Int
+  remainingQty    Int
+  unitPrice       Decimal       @db.Decimal(12, 2)
+  costPrice       Decimal?      @db.Decimal(12, 2)
+  manufacturedAt  DateTime?
+  expiresAt       DateTime
+  expiryStatus    ExpiryStatus  @default(FRESH)
+  discountPercent Decimal       @db.Decimal(5, 2) @default(0)
+  isDiscounted    Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  inventoryId     String
+  inventory       Inventory    @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  productId       String
+  product         Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  saleItems       SaleItem[]
+  expiryAlerts    ExpiryAlert[]
+
+  @@index([organisationId])
+  @@index([inventoryId])
+  @@index([productId])
+  @@index([expiresAt])
+  @@index([expiryStatus])
+}
+
+model ExpiryAlert {
+  id              String        @id @default(uuid())
+  title           String
+  message         String
+  alertType       String        @default("NEAR_EXPIRY")
+  status          AlertStatus   @default(PENDING)
+  suggestedDiscount Decimal?    @db.Decimal(5, 2)
+  expiresAt       DateTime
+  createdAt       DateTime      @default(now())
+  resolvedAt      DateTime?
+
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  branchId        String?
+  branch          Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  productId       String?
+  product         Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  batchId         String?
+  batch           ProductBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  resolvedById    String?
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model InventoryAdjustment {
+  id             String    @id @default(uuid())
+  quantity       Int
+  reason         String
+  reference      String?
+  createdAt      DateTime  @default(now())
+
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  branchId       String
+  userId         String
+}
+
+model InventoryTransfer {
+  id             String    @id @default(uuid())
+  status         String    @default("PENDING")
+  fromBranchId  String
+  toBranchId     String
+  notes          String?
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  userId         String
+  items          InventoryTransferItem[]
+}
+
+model InventoryTransferItem {
+  id             String    @id @default(uuid())
+
+  transferId     String
+  transfer      InventoryTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  quantity       Int
+}
+
+model Device {
+  id              String    @id @default(uuid())
+  name            String
+  type            String    @default("POS")
+  serialNumber    String?
+  fingerprint     String?
+  lastHeartbeat   DateTime?
+  status          DeviceStatus @default(ACTIVE)
+  metadata        Json      @default("{}")
+  trusted         Boolean   @default(false)
+  lastLoginAt     DateTime?
+  lastLoginIp     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  branchId        String
+  branch          Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  sales           Sale[]
+  syncLogs        SyncLog[]
+  sessions        DeviceSession[]
+
+  @@index([organisationId])
+  @@index([branchId])
+  @@index([fingerprint])
+}
+
+model Printer {
+  id              String    @id @default(uuid())
+  name            String
+  type            String    @default("RECEIPT")
+  connectionType  String    @default("NETWORK")
+  host            String?
+  port            Int       @default(9100)
+  macAddress      String?
+  serialNumber    String?
+  status          String    @default("OFFLINE")
+  capabilities   Json      @default("{}")
+  metadata        Json      @default("{}")
+  isDefault       Boolean   @default(false)
+  lastHeartbeat   DateTime?
+  lastPrintAt     DateTime?
+  printCount      Int       @default(0)
+  errorCount      Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  branchId        String?
+  branch          Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  printJobs       PrintJob[]
+
+  @@index([organisationId])
+  @@index([branchId])
+  @@index([status])
+}
+
+model PrintJob {
+  id              String    @id @default(uuid())
+  jobType         String
+  title           String
+  payload         Json
+  status          String    @default("PENDING")
+  priority        Int       @default(5)
+  retryCount      Int       @default(0)
+  maxRetries      Int       @default(3)
+  errorMessage    String?
+  attempts        Int       @default(0)
+  createdAt       DateTime  @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  printerId       String
+  printer         Printer   @relation(fields: [printerId], references: [id], onDelete: Cascade)
+
+  saleId          String?
+  sale            Sale?     @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  createdById     String?
+
+  @@index([printerId])
+  @@index([status])
+  @@index([priority, createdAt])
+  @@index([saleId])
+}
+
+model DeviceSession {
+  id              String    @id @default(uuid())
+  deviceId        String
+  device          Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  accessToken     String    @unique
+  refreshToken    String    @unique
+  expiresAt       DateTime
+  createdAt       DateTime  @default(now())
+  revokedAt       DateTime?
+  ipAddress       String?
+  userAgent       String?
+  isActive        Boolean   @default(true)
+
+  @@index([deviceId])
+  @@index([accessToken])
+  @@index([refreshToken])
+}
+
+model Sale {
+  id             String      @id @default(uuid())
+  receiptNumber  String      @unique
+  totalAmount    Decimal     @db.Decimal(12, 2)
+  taxAmount      Decimal     @db.Decimal(12, 2)
+  discountAmount Decimal     @db.Decimal(12, 2) @default(0)
+  status         SaleStatus  @default(COMPLETED)
+  paymentMethod  PaymentMethod @default(CASH)
+  notes          String?
+  createdAt      DateTime    @default(now())
+  voidedAt       DateTime?
+  voidReason     String?
+
+  userId         String
+  user           User        @relation(fields: [userId], references: [id])
+
+  voidedById     String?
+  voidedBy       User?       @relation("VoidedByUser", fields: [voidedById], references: [id])
+
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  branchId       String
+  branch         Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  deviceId       String?
+  device         Device?     @relation(fields: [deviceId], references: [id])
+
+  items          SaleItem[]
+  payments       Payment[]
+  anomalies      Anomaly[]
+  printJobs      PrintJob[]
+
+  @@index([receiptNumber])
+  @@index([organisationId])
+  @@index([userId])
+  @@index([branchId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id              String    @id @default(uuid())
+  action          String
+  entityType      String
+  entityId        String?
+  oldValues       Json?
+  newValues       Json?
+  changes         Json      @default("[]")
+  ipAddress       String?
+  userAgent       String?
+  sessionId      String?
+  hash           String    @unique
+  previousHash   String?
+  version         Int       @default(1)
+  isImmutable     Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([organisationId])
+  @@index([entityType, entityId])
+  @@index([hash])
+  @@index([createdAt])
+  @@index([action])
+}
+
+model DataRetentionPolicy {
+  id              String    @id @default(uuid())
+  name            String
+  entityType      String
+  retentionDays   Int       @default(365)
+  archiveAfterDays Int      @default(730)
+  deleteAfterDays Int       @default(2555)
+  actionOnExpiry  String    @default("ARCHIVE")
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([entityType])
+  @@index([isActive])
+}
+
+model DataArchive {
+  id              String    @id @default(uuid())
+  entityType      String
+  entityId        String
+  archivedData    Json
+  originalHash    String?
+  archivedAt       DateTime  @default(now())
+  restoreHash     String?
+  isRestored      Boolean   @default(false)
+  restoredAt      DateTime?
+
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([entityType, entityId])
+  @@index([isRestored])
+}
+
+model SyncLog {
+  id              String    @id @default(uuid())
+  deviceId        String
+  device          Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  payloadSize    Int?
+  status          String    @default("PENDING")
+  errorMessage    String?
+  syncVersion     Int       @default(1)
+  baseVersion     Int?
+  deltaHash       String?
+  createdAt      DateTime  @default(now())
+  completedAt     DateTime?
+
+  @@index([deviceId])
+  @@index([createdAt])
+  @@index([syncVersion])
+}
+
+model SyncEvent {
+  id              String    @id @default(uuid())
+  eventType       String
+  entityType      String
+  entityId        String
+  eventData       Json
+  previousData    Json?
+  userId          String
+  deviceId        String?
+  branchId        String?
+  organisationId  String
+  timestamp       DateTime  @default(now())
+  version         Int       @default(1)
+  eventHash       String    @unique
+  isReplayed      Boolean   @default(false)
+  replayedAt      DateTime?
+
+  @@index([organisationId])
+  @@index([entityType, entityId])
+  @@index([timestamp])
+  @@index([eventHash])
+  @@index([version])
+}
+
+model SyncVersion {
+  id              String    @id @default(uuid())
+  version         Int       @unique
+  minAppVersion   String
+  changes        Json
+  createdAt      DateTime  @default(now())
+  isActive        Boolean   @default(true)
+
+  @@index([isActive])
+}
+
+model Payment {
+  id              String           @id @default(uuid())
+  amount          Decimal          @db.Decimal(12, 2)
+  method          PaymentMethod
+  status          TransactionStatus @default(PENDING)
+  reference       String?          @unique
+  provider        String?          @default("INTERNAL")
+  providerRef    String?
+  encryptedData  String?
+  retryCount     Int              @default(0)
+  maxRetries     Int              @default(3)
+  errorMessage   String?
+  callbackData   Json?
+  confirmedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  completedAt    DateTime?
+
+  saleId          String
+  sale            Sale             @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@index([reference])
+  @@index([status])
+  @@index([provider, status])
+}
+
+model PaymentReconciliation {
+  id              String    @id @default(uuid())
+  periodStart     DateTime
+  periodEnd       DateTime
+  status          String    @default("PENDING")
+  totalExpected   Decimal   @db.Decimal(12, 2)
+  totalConfirmed  Decimal   @db.Decimal(12, 2)
+  totalPending    Decimal   @db.Decimal(12, 2)
+  totalFailed     Decimal   @db.Decimal(12, 2)
+  discrepancy     Decimal   @db.Decimal(12, 2) @default(0)
+  notes           String?
+  createdAt       DateTime  @default(now())
+  completedAt     DateTime?
+
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([periodStart])
+  @@index([status])
+}
+
+model WebhookConfig {
+  id              String    @id @default(uuid())
+  name            String
+  url             String
+  secret          String?
+  events          String[]
+  isActive        Boolean   @default(true)
+  retryPolicy     Json      @default("{\"maxRetries\":3,\"retryInterval\":60}")
+  headers         Json      @default("{}")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  webhooks        WebhookDelivery[]
+
+  @@index([organisationId])
+  @@index([isActive])
+}
+
+model WebhookDelivery {
+  id              String    @id @default(uuid())
+  event           String
+  payload         Json
+  response        Json?
+  statusCode      Int?
+  status          String    @default("PENDING")
+  attempt         Int       @default(0)
+  maxRetries      Int       @default(3)
+  errorMessage    String?
+  deliveredAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  configId        String
+  config          WebhookConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@index([configId])
+  @@index([status])
+  @@index([event])
+}
+
+model SaleItem {
+  id             String    @id @default(uuid())
+  quantity       Int
+  unitPrice      Decimal   @db.Decimal(12, 2)
+  totalPrice     Decimal   @db.Decimal(12, 2)
+  discount       Decimal   @db.Decimal(12, 2) @default(0)
+  taxAmount      Decimal   @db.Decimal(12, 2)
+  createdAt      DateTime  @default(now())
+
+  saleId         String
+  sale           Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  batchId        String?
+  batch          ProductBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@index([productId])
+  @@index([batchId])
+}
+
+model AnomalyRule {
+  id              String    @id @default(uuid())
+  name            String
+  description     String?
+  type            String
+  severity        String    @default("MEDIUM")
+  isEnabled       Boolean   @default(true)
+  threshold       Json      @default("{}")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([type])
+  @@index([isEnabled])
+}
+
+model Anomaly {
+  id              String    @id @default(uuid())
+  type            String
+  severity        String    @default("MEDIUM")
+  status          String    @default("DETECTED")
+  title           String
+  description     String
+  evidence        Json      @default("{}")
+  riskScore       Float     @default(0)
+  resolvedAt      DateTime?
+  resolutionNotes String?
+  createdAt       DateTime  @default(now())
+
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id])
+
+  saleId          String?
+  sale            Sale?     @relation(fields: [saleId], references: [id])
+
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([type])
+  @@index([severity])
+  @@index([status])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model RefreshToken {
+  id              String    @id @default(uuid())
+  token           String    @unique
+  tokenFamily     String    @default(uuid())
+  hashedToken     String    @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt       DateTime
+  createdAt       DateTime  @default(now())
+  revokedAt       DateTime?
+  revokedByToken  String?
+  deviceId        String?
+  ipAddress       String?
+  userAgent       String?
+  fingerprint    String?
+  isRotated       Boolean   @default(false)
+  rotationCount   Int       @default(0)
+
+  @@index([userId])
+  @@index([token])
+  @@index([tokenFamily])
+  @@index([expiresAt])
+  @@index([deviceId])
+}
+
+model TokenRevocation {
+  id              String    @id @default(uuid())
+  tokenHash       String    @unique
+  tokenFamily     String
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reason          String
+  revokedAt       DateTime  @default(now())
+  expiresAt       DateTime
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@index([tokenFamily])
+}
+
+model SyncConflict {
+  id             String    @id @default(uuid())
+  type           String
+  entityId       String
+  entityType     String
+  localData      Json
+  serverData     Json
+  resolution     String    @default("PENDING")
+  resolvedAt     DateTime?
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([type])
+  @@index([entityId])
+  @@index([resolution])
+}
+
+model FeatureFlag {
+  id              String    @id @default(uuid())
+  key             String    @unique
+  name            String
+  description     String?
+  isEnabled       Boolean   @default(false)
+  rolloutPercent  Int       @default(0)
+  targetUsers    String    @default("*")
+  targetRoles    String    @default("*")
+  targetBranches String    @default("*")
+  metadata       Json      @default("{}")
+  expiresAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([isEnabled])
+}
+
+model Deployment {
+  id              String    @id @default(uuid())
+  version         String
+  environment     String
+  status          String    @default("PENDING")
+  strategy        String    @default("BLUE_GREEN")
+  canaryPercent   Int       @default(0)
+  rollbackEnabled Boolean   @default(true)
+  autoRollbackPercent Int  @default(50)
+  notes           String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  metrics        CanaryMetric[]
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([version])
+}
+
+model CanaryMetric {
+  id              String    @id @default(uuid())
+  metricName      String
+  metricValue     Float
+  baselineValue   Float?
+  deviation       Float?
+  status          String    @default("OK")
+  errorRate       Float     @default(0)
+  latencyP95      Float     @default(0)
+  sampleSize      Int       @default(0)
+  tags            Json      @default("{}")
+  createdAt       DateTime  @default(now())
+
+  deploymentId    String
+  deployment     Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+
+  @@index([deploymentId])
+  @@index([metricName])
+  @@index([createdAt])
+}

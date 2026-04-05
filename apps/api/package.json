@@ -1,0 +1,32 @@
+{
+  "name": "@nexus/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nexus/auth": "workspace:*",
+    "@nexus/cache": "workspace:*",
+    "@nexus/db": "workspace:*",
+    "@nexus/payments": "workspace:*",
+    "@nexus/printing": "workspace:*",
+    "@nexus/queue": "workspace:*",
+    "@nexus/sync": "workspace:*",
+    "@nexus/types": "workspace:*",
+    "hono": "^4.0.0",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,51 @@
+import { verifyAccessToken } from './jwt.js';
+export function getAuthContext(c) {
+    return c.get('user');
+}
+export function authMiddleware(c, next) {
+    const authHeader = c.req.header('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+        return c.json({ success: false, error: 'Unauthorized', message: 'Missing or invalid authorization header' }, 401);
+    }
+    const token = authHeader.slice(7);
+    try {
+        const payload = verifyAccessToken(token);
+        c.set('user', payload);
+        return next();
+    }
+    catch {
+        return c.json({ success: false, error: 'Unauthorized', message: 'Invalid or expired token' }, 401);
+    }
+}
+export function requireRole(...roles) {
+    return async (c, next) => {
+        const user = c.get('user');
+        if (!roles.includes(user.role)) {
+            return c.json({
+                success: false,
+                error: 'Forbidden',
+                message: `This action requires one of the following roles: ${roles.join(', ')}`
+            }, 403);
+        }
+        return next();
+    };
+}
+export const SUPER_ADMIN_ONLY = requireRole('SUPER_ADMIN');
+export const ORG_ADMIN_ONLY = requireRole('SUPER_ADMIN', 'ORG_ADMIN');
+export const BRANCH_MANAGER_AND_ABOVE = requireRole('SUPER_ADMIN', 'ORG_ADMIN', 'BRANCH_MANAGER');
+export const MANAGER_AND_ABOVE = requireRole('SUPER_ADMIN', 'ORG_ADMIN', 'BRANCH_MANAGER');
+export const CASHIER_AND_ABOVE = requireRole('SUPER_ADMIN', 'ORG_ADMIN', 'BRANCH_MANAGER', 'CASHIER');
+export const WAREHOUSE_AND_ABOVE = requireRole('SUPER_ADMIN', 'ORG_ADMIN', 'BRANCH_MANAGER', 'WAREHOUSE');
+export const AUDITOR_AND_ABOVE = requireRole('SUPER_ADMIN', 'ORG_ADMIN', 'BRANCH_MANAGER', 'CASHIER', 'WAREHOUSE', 'AUDITOR');
+export function requireBranch(c, next) {
+    const user = c.get('user');
+    if (!user.branchId) {
+        return c.json({
+            success: false,
+            error: 'Bad Request',
+            message: 'User must be assigned to a branch'
+        }, 400);
+    }
+    return next();
+}
+//# sourceMappingURL=middleware.js.map
