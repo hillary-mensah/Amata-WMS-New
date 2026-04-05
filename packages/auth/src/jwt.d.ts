@@ -24,9 +24,9 @@ export declare function authenticateUser(email: string, password: string): Promi
     organisation: {
         id: string;
         createdAt: Date;
+        name: string;
         email: string | null;
         updatedAt: Date;
-        name: string;
         tin: string;
         vatNumber: string | null;
         address: string | null;
@@ -37,10 +37,10 @@ export declare function authenticateUser(email: string, password: string): Promi
         id: string;
         createdAt: Date;
         organisationId: string;
+        name: string;
         email: string | null;
         isActive: boolean;
         updatedAt: Date;
-        name: string;
         code: string;
         address: string | null;
         phone: string | null;

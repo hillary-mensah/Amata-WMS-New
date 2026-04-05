@@ -1,11 +1,16 @@
-import { db } from '@nexus/db';
-import { createSocket, Socket } from 'net';
-import { EventEmitter } from 'events';
-import { buildReceipt, buildLabel, type ReceiptData, type LabelData } from '../printing/src/escpos.js';
+import { db } from "@nexus/db";
+import { Socket } from "net";
+import { EventEmitter } from "events";
+import {
+  buildReceipt,
+  buildLabel,
+  type ReceiptData,
+  type LabelData,
+} from "./escpos";
 
 export interface PrintJobData {
   id: string;
-  jobType: 'RECEIPT' | 'LABEL' | 'REPORT';
+  jobType: "RECEIPT" | "LABEL" | "REPORT";
   title: string;
   payload: ReceiptData | LabelData;
   priority: number;
@@ -13,8 +18,8 @@ export interface PrintJobData {
 
 export interface PrinterStatus {
   online: boolean;
-  paper: 'OK' | 'LOW' | 'OUT';
-  cover: 'CLOSED' | 'OPEN';
+  paper: "OK" | "LOW" | "OUT";
+  cover: "CLOSED" | "OPEN";
   errors: string[];
 }
 
@@ -37,25 +42,25 @@ class PrinterConnection extends EventEmitter {
       this.socket = new Socket();
       this.socket.setTimeout(this.timeout);
 
-      this.socket.on('connect', () => {
+      this.socket.on("connect", () => {
         this.reconnectAttempts = 0;
-        this.emit('connected');
+        this.emit("connected");
         resolve();
       });
 
-      this.socket.on('timeout', () => {
-        this.emit('timeout');
+      this.socket.on("timeout", () => {
+        this.emit("timeout");
         this.socket?.destroy();
-        reject(new Error('Connection timeout'));
+        reject(new Error("Connection timeout"));
       });
 
-      this.socket.on('error', (err) => {
-        this.emit('error', err);
+      this.socket.on("error", (err) => {
+        this.emit("error", err);
         reject(err);
       });
 
-      this.socket.on('close', () => {
-        this.emit('disconnected');
+      this.socket.on("close", () => {
+        this.emit("disconnected");
       });
 
       this.socket.connect(this.port, this.host);
@@ -72,7 +77,7 @@ class PrinterConnection extends EventEmitter {
         if (err) {
           reject(err);
         } else {
-          this.emit('printed');
+          this.emit("printed");
           resolve();
         }
       });
@@ -84,27 +89,37 @@ class PrinterConnection extends EventEmitter {
       try {
         await this.connect();
       } catch {
-        return { online: false, paper: 'UNKNOWN', cover: 'UNKNOWN', errors: ['Cannot connect'] };
+        return {
+          online: false,
+          paper: "UNKNOWN",
+          cover: "UNKNOWN",
+          errors: ["Cannot connect"],
+        };
       }
     }
 
     const statusCmd = Buffer.from([0x10, 0x04, 0x01]);
-    
+
     return new Promise((resolve) => {
       let response = Buffer.alloc(0);
-      
+
       const timeout = setTimeout(() => {
         this.socket?.destroy();
-        resolve({ online: true, paper: 'OK', cover: 'CLOSED', errors: [] });
+        resolve({ online: true, paper: "OK", cover: "CLOSED", errors: [] });
       }, 2000);
 
-      this.socket!.once('data', (data) => {
+      this.socket!.once("data", (data) => {
         clearTimeout(timeout);
         response = data;
-        
-        const paper = (data[0] & 0x60) === 0x60 ? 'OUT' : (data[0] & 0x40) === 0x40 ? 'LOW' : 'OK';
-        const cover = (data[0] & 0x04) === 0x04 ? 'OPEN' : 'CLOSED';
-        
+
+        const paper =
+          (data[0] & 0x60) === 0x60
+            ? "OUT"
+            : (data[0] & 0x40) === 0x40
+              ? "LOW"
+              : "OK";
+        const cover = (data[0] & 0x04) === 0x04 ? "OPEN" : "CLOSED";
+
         resolve({ online: true, paper, cover, errors: [] });
       });
 
@@ -138,27 +153,31 @@ class PrintQueue extends EventEmitter {
   private startHeartbeat(): void {
     this.heartbeatInterval = setInterval(async () => {
       const printers = await db.printer.findMany({
-        where: { status: { not: 'DISABLED' } },
+        where: { status: { not: "DISABLED" } },
       });
 
       for (const printer of printers) {
-        if (printer.connectionType === 'NETWORK' && printer.host) {
-          const conn = this.getOrCreateConnection(printer.id, printer.host, printer.port);
-          
+        if (printer.connectionType === "NETWORK" && printer.host) {
+          const conn = this.getOrCreateConnection(
+            printer.id,
+            printer.host,
+            printer.port,
+          );
+
           try {
             const status = await conn.getStatus();
-            
+
             await db.printer.update({
               where: { id: printer.id },
               data: {
-                status: status.online ? 'ONLINE' : 'OFFLINE',
+                status: status.online ? "ONLINE" : "OFFLINE",
                 lastHeartbeat: new Date(),
               },
             });
           } catch {
             await db.printer.update({
               where: { id: printer.id },
-              data: { status: 'OFFLINE' },
+              data: { status: "OFFLINE" },
             });
           }
         }
@@ -174,7 +193,11 @@ class PrintQueue extends EventEmitter {
     }, 5000);
   }
 
-  private getOrCreateConnection(printerId: string, host: string, port: number): PrinterConnection {
+  private getOrCreateConnection(
+    printerId: string,
+    host: string,
+    port: number,
+  ): PrinterConnection {
     if (!this.printers.has(printerId)) {
       this.printers.set(printerId, new PrinterConnection(host, port));
     }
@@ -183,14 +206,14 @@ class PrintQueue extends EventEmitter {
 
   async enqueue(job: PrintJobData): Promise<string> {
     const printer = await db.printer.findFirst({
-      where: { 
+      where: {
         id: job.payload.printerId,
-        status: { not: 'DISABLED' },
+        status: { not: "DISABLED" },
       },
     });
 
     if (!printer) {
-      throw new Error('Printer not found or disabled');
+      throw new Error("Printer not found or disabled");
     }
 
     const printJob = await db.printJob.create({
@@ -199,13 +222,13 @@ class PrintQueue extends EventEmitter {
         title: job.title,
         payload: job.payload,
         priority: job.priority || 5,
-        status: 'PENDING',
+        status: "PENDING",
         printerId: printer.id,
         saleId: job.payload.saleId,
       },
     });
 
-    this.emit('jobQueued', printJob.id);
+    this.emit("jobQueued", printJob.id);
     return printJob.id;
   }
 
@@ -214,8 +237,8 @@ class PrintQueue extends EventEmitter {
 
     try {
       const job = await db.printJob.findFirst({
-        where: { status: 'PENDING' },
-        orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+        where: { status: "PENDING" },
+        orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
         include: { printer: true },
       });
 
@@ -225,19 +248,27 @@ class PrintQueue extends EventEmitter {
 
       await db.printJob.update({
         where: { id: job.id },
-        data: { status: 'PROCESSING', startedAt: new Date(), attempts: { increment: 1 } },
+        data: {
+          status: "PROCESSING",
+          startedAt: new Date(),
+          attempts: { increment: 1 },
+        },
       });
 
-      const conn = this.getOrCreateConnection(job.printer.id, job.printer.host || '', job.printer.port);
+      const conn = this.getOrCreateConnection(
+        job.printer.id,
+        job.printer.host || "",
+        job.printer.port,
+      );
 
       try {
         await conn.connect();
 
         let printData: Buffer;
-        
-        if (job.jobType === 'RECEIPT') {
+
+        if (job.jobType === "RECEIPT") {
           printData = buildReceipt(job.payload as ReceiptData);
-        } else if (job.jobType === 'LABEL') {
+        } else if (job.jobType === "LABEL") {
           printData = buildLabel(job.payload as LabelData);
         } else {
           printData = Buffer.from(job.payload as unknown as string);
@@ -247,7 +278,7 @@ class PrintQueue extends EventEmitter {
 
         await db.printer.update({
           where: { id: job.printerId },
-          data: { 
+          data: {
             lastPrintAt: new Date(),
             printCount: { increment: 1 },
           },
@@ -255,13 +286,14 @@ class PrintQueue extends EventEmitter {
 
         await db.printJob.update({
           where: { id: job.id },
-          data: { status: 'COMPLETED', completedAt: new Date() },
+          data: { status: "COMPLETED", completedAt: new Date() },
         });
 
-        this.emit('jobCompleted', job.id);
+        this.emit("jobCompleted", job.id);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+
         await db.printer.update({
           where: { id: job.printerId },
           data: { errorCount: { increment: 1 } },
@@ -270,22 +302,22 @@ class PrintQueue extends EventEmitter {
         if (job.attempts >= job.maxRetries) {
           await db.printJob.update({
             where: { id: job.id },
-            data: { 
-              status: 'FAILED',
+            data: {
+              status: "FAILED",
               errorMessage,
             },
           });
-          this.emit('jobFailed', job.id, errorMessage);
+          this.emit("jobFailed", job.id, errorMessage);
         } else {
           await db.printJob.update({
             where: { id: job.id },
-            data: { 
-              status: 'RETRY',
+            data: {
+              status: "RETRY",
               retryCount: { increment: 1 },
               errorMessage,
             },
           });
-          this.emit('jobRetrying', job.id);
+          this.emit("jobRetrying", job.id);
         }
       }
     } finally {
@@ -296,14 +328,14 @@ class PrintQueue extends EventEmitter {
   async retryJob(jobId: string): Promise<void> {
     await db.printJob.update({
       where: { id: jobId },
-      data: { status: 'PENDING', retryCount: 0, errorMessage: null },
+      data: { status: "PENDING", retryCount: 0, errorMessage: null },
     });
   }
 
   async cancelJob(jobId: string): Promise<void> {
     await db.printJob.update({
       where: { id: jobId },
-      data: { status: 'CANCELLED' },
+      data: { status: "CANCELLED" },
     });
   }
 
@@ -319,24 +351,38 @@ class PrintQueue extends EventEmitter {
       where: { id: printerId },
       include: {
         printJobs: {
-          where: { status: { in: ['PENDING', 'PROCESSING', 'RETRY'] } },
-          orderBy: { createdAt: 'desc' },
+          where: { status: { in: ["PENDING", "PROCESSING", "RETRY"] } },
+          orderBy: { createdAt: "desc" },
           take: 10,
         },
       },
     });
 
-    if (!printer || printer.connectionType !== 'NETWORK') {
+    if (!printer || printer.connectionType !== "NETWORK") {
       return printer;
     }
 
-    const conn = this.getOrCreateConnection(printer.id, printer.host || '', printer.port);
-    let status: PrinterStatus = { online: false, paper: 'UNKNOWN', cover: 'UNKNOWN', errors: [] };
+    const conn = this.getOrCreateConnection(
+      printer.id,
+      printer.host || "",
+      printer.port,
+    );
+    let status: PrinterStatus = {
+      online: false,
+      paper: "UNKNOWN",
+      cover: "UNKNOWN",
+      errors: [],
+    };
 
     try {
       status = await conn.getStatus();
     } catch {
-      status = { online: false, paper: 'UNKNOWN', cover: 'UNKNOWN', errors: ['Cannot connect'] };
+      status = {
+        online: false,
+        paper: "UNKNOWN",
+        cover: "UNKNOWN",
+        errors: ["Cannot connect"],
+      };
     }
 
     return { ...printer, ...status };
@@ -355,17 +401,17 @@ class PrintQueue extends EventEmitter {
       createdAt: Date;
     }>;
   }> {
-    const where = printerId 
-      ? { printerId, status: { in: ['PENDING', 'PROCESSING', 'RETRY'] } }
-      : { status: { in: ['PENDING', 'PROCESSING', 'RETRY'] } };
+    const where = printerId
+      ? { printerId, status: { in: ["PENDING", "PROCESSING", "RETRY"] } }
+      : { status: { in: ["PENDING", "PROCESSING", "RETRY"] } };
 
     const [pending, processing, failed, jobs] = await Promise.all([
-      db.printJob.count({ where: { ...where, status: 'PENDING' } }),
-      db.printJob.count({ where: { ...where, status: 'PROCESSING' } }),
-      db.printJob.count({ where: { ...where, status: 'FAILED' } }),
+      db.printJob.count({ where: { ...where, status: "PENDING" } }),
+      db.printJob.count({ where: { ...where, status: "PROCESSING" } }),
+      db.printJob.count({ where: { ...where, status: "FAILED" } }),
       db.printJob.findMany({
         where,
-        orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+        orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
         take: 20,
         select: {
           id: true,
@@ -400,11 +446,11 @@ export const printQueue = new PrintQueue();
 export async function queueReceipt(
   saleId: string,
   receiptData: ReceiptData,
-  priority: number = 5
+  priority: number = 5,
 ): Promise<string> {
   return printQueue.enqueue({
-    id: '',
-    jobType: 'RECEIPT',
+    id: "",
+    jobType: "RECEIPT",
     title: `Receipt for ${receiptData.receiptNumber}`,
     payload: { ...receiptData, saleId },
     priority,
@@ -414,11 +460,11 @@ export async function queueReceipt(
 export async function queueLabel(
   productId: string,
   labelData: LabelData,
-  priority: number = 3
+  priority: number = 3,
 ): Promise<string> {
   return printQueue.enqueue({
-    id: '',
-    jobType: 'LABEL',
+    id: "",
+    jobType: "LABEL",
     title: `Label for ${labelData.productName}`,
     payload: { ...labelData, productId },
     priority,
@@ -434,14 +480,17 @@ export async function testPrinter(printerId: string): Promise<{
   });
 
   if (!printer) {
-    return { success: false, message: 'Printer not found' };
+    return { success: false, message: "Printer not found" };
   }
 
-  if (printer.connectionType !== 'NETWORK') {
-    return { success: false, message: 'Only network printers supported for testing' };
+  if (printer.connectionType !== "NETWORK") {
+    return {
+      success: false,
+      message: "Only network printers supported for testing",
+    };
   }
 
-  const conn = new PrinterConnection(printer.host || '', printer.port);
+  const conn = new PrinterConnection(printer.host || "", printer.port);
 
   try {
     await conn.connect();
@@ -450,17 +499,20 @@ export async function testPrinter(printerId: string): Promise<{
 
     await db.printer.update({
       where: { id: printerId },
-      data: { status: status.online ? 'ONLINE' : 'OFFLINE', lastHeartbeat: new Date() },
+      data: {
+        status: status.online ? "ONLINE" : "OFFLINE",
+        lastHeartbeat: new Date(),
+      },
     });
 
-    return { 
-      success: status.online, 
-      message: status.online 
-        ? `Printer online. Paper: ${status.paper}, Cover: ${status.cover}` 
-        : 'Printer is offline' 
+    return {
+      success: status.online,
+      message: status.online
+        ? `Printer online. Paper: ${status.paper}, Cover: ${status.cover}`
+        : "Printer is offline",
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
+    const message = error instanceof Error ? error.message : "Unknown error";
     return { success: false, message };
   }
 }

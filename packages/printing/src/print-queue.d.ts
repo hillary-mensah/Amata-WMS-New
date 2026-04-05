@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { type ReceiptData, type LabelData } from '../printing/src/escpos.js';
+import { type ReceiptData, type LabelData } from '../printing/src/escpos';
 export interface PrintJobData {
     id: string;
     jobType: 'RECEIPT' | 'LABEL' | 'REPORT';

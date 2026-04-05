@@ -35,6 +35,15 @@ importers:
       '@nexus/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@nexus/governance':
+        specifier: workspace:*
+        version: link:../../packages/governance
+      '@nexus/intelligence':
+        specifier: workspace:*
+        version: link:../../packages/intelligence
+      '@nexus/ops':
+        specifier: workspace:*
+        version: link:../../packages/ops
       '@nexus/payments':
         specifier: workspace:*
         version: link:../../packages/payments

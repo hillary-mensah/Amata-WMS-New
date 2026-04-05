@@ -5,7 +5,7 @@ export function getAuthContext(c) {
 export function authMiddleware(c, next) {
     const authHeader = c.req.header('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-        return c.json({ success: false, error: 'Unauthorized', message: 'Missing or invalid authorization header' }, 401);
+        return Promise.resolve(c.json({ success: false, error: 'Unauthorized', message: 'Missing or invalid authorization header' }, 401));
     }
     const token = authHeader.slice(7);
     try {
@@ -14,7 +14,7 @@ export function authMiddleware(c, next) {
         return next();
     }
     catch {
-        return c.json({ success: false, error: 'Unauthorized', message: 'Invalid or expired token' }, 401);
+        return Promise.resolve(c.json({ success: false, error: 'Unauthorized', message: 'Invalid or expired token' }, 401));
     }
 }
 export function requireRole(...roles) {
@@ -40,11 +40,11 @@ export const AUDITOR_AND_ABOVE = requireRole('SUPER_ADMIN', 'ORG_ADMIN', 'BRANCH
 export function requireBranch(c, next) {
     const user = c.get('user');
     if (!user.branchId) {
-        return c.json({
+        return Promise.resolve(c.json({
             success: false,
             error: 'Bad Request',
             message: 'User must be assigned to a branch'
-        }, 400);
+        }, 400));
     }
     return next();
 }

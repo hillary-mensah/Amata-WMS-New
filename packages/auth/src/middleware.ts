@@ -1,5 +1,5 @@
 import type { Context, Next } from 'hono';
-import { verifyAccessToken, type TokenPayload } from './jwt.js';
+import { verifyAccessToken, type TokenPayload } from './jwt';
 import { Role } from '@nexus/types';
 
 export interface AuthContext {

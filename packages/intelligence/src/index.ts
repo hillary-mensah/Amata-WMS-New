@@ -1,1 +1,1 @@
-export * from './forecasting.js';
+export * from './forecasting';

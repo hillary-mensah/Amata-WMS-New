@@ -1,7 +1,7 @@
 import { db } from '@nexus/db';
 import { createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import { processSyncWithConflictResolution, type SyncConflict } from './conflict-resolution.js';
+import { processSyncWithConflictResolution, type SyncConflict } from './conflict-resolution';
 
 export const SYNC_VERSION = 3;
 export const MIN_COMPATIBLE_VERSION = 1;

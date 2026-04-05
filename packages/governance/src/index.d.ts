@@ -1,3 +1,3 @@
-export * from './audit.js';
-export * from './middleware.js';
+export * from './audit';
+export * from './middleware';
 //# sourceMappingURL=index.d.ts.map

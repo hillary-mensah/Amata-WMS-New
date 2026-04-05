@@ -1,5 +1,5 @@
-export * from './jwt.js';
-export * from './middleware.js';
-export * from './crypto.js';
-export * from './security.js';
+export * from './jwt';
+export * from './middleware';
+export * from './crypto';
+export * from './security';
 //# sourceMappingURL=index.d.ts.map

@@ -1,4 +1,4 @@
-import { type SyncConflict } from './conflict-resolution.js';
+import { type SyncConflict } from './conflict-resolution';
 export declare const SYNC_VERSION = 3;
 export declare const MIN_COMPATIBLE_VERSION = 1;
 export interface SyncPayload {

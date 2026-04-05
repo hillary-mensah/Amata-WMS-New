@@ -1,6 +1,8 @@
-import { redirect } from 'next/navigation';
-import { useAuthStore } from '@/lib/store';
-import { Sidebar, Header } from '@/components/layout';
+"use client";
+
+import { redirect } from "next/navigation";
+import { useAuthStore } from "@/lib/store";
+import { Sidebar, Header } from "@/components/layout";
 
 export default function DashboardLayout({
   children,
@@ -10,7 +12,7 @@ export default function DashboardLayout({
   const { isAuthenticated, user } = useAuthStore();
 
   if (!isAuthenticated || !user) {
-    redirect('/login');
+    redirect("/login");
   }
 
   return (
@@ -18,9 +20,7 @@ export default function DashboardLayout({
       <Sidebar />
       <div className="flex-1 ml-[280px]">
         <Header />
-        <main className="p-8">
-          {children}
-        </main>
+        <main className="p-8">{children}</main>
       </div>
     </div>
   );

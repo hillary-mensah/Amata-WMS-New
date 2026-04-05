@@ -1,2 +1,2 @@
-export * from './forecasting.js';
+export * from './forecasting';
 //# sourceMappingURL=index.d.ts.map

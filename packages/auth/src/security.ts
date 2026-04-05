@@ -1,7 +1,7 @@
 import { db } from '@nexus/db';
 import { createHash } from 'crypto';
-import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from './jwt.js';
-import { encrypt, decrypt } from './crypto.js';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from './jwt';
+import { encrypt, decrypt } from './crypto';
 
 const REFRESH_TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000;
 const MAX_TOKEN_FAMILY_SIZE = 5;

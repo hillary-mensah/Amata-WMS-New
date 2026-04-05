@@ -97,13 +97,13 @@ export declare const SaleItemSchema: z.ZodObject<{
     discount: z.ZodDefault<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     productId: string;
-    unitPrice: number;
     quantity: number;
+    unitPrice: number;
     discount: number;
 }, {
     productId: string;
-    unitPrice: number;
     quantity: number;
+    unitPrice: number;
     discount?: number | undefined;
 }>;
 export declare const CreateSaleRequestSchema: z.ZodObject<{
@@ -116,13 +116,13 @@ export declare const CreateSaleRequestSchema: z.ZodObject<{
         discount: z.ZodDefault<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
         productId: string;
-        unitPrice: number;
         quantity: number;
+        unitPrice: number;
         discount: number;
     }, {
         productId: string;
-        unitPrice: number;
         quantity: number;
+        unitPrice: number;
         discount?: number | undefined;
     }>, "many">;
     paymentMethod: z.ZodDefault<z.ZodEnum<["CASH", "CARD", "MOMO", "MIXED"]>>;
@@ -131,30 +131,30 @@ export declare const CreateSaleRequestSchema: z.ZodObject<{
     deviceId: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     branchId: string;
-    paymentMethod: "CASH" | "CARD" | "MOMO" | "MIXED";
+    idempotencyKey: string;
     items: {
         productId: string;
-        unitPrice: number;
         quantity: number;
+        unitPrice: number;
         discount: number;
     }[];
-    idempotencyKey: string;
-    notes?: string | undefined;
+    paymentMethod: "CASH" | "CARD" | "MOMO" | "MIXED";
     deviceId?: string | undefined;
     paymentReference?: string | undefined;
+    notes?: string | undefined;
 }, {
     branchId: string;
+    idempotencyKey: string;
     items: {
         productId: string;
-        unitPrice: number;
         quantity: number;
+        unitPrice: number;
         discount?: number | undefined;
     }[];
-    idempotencyKey: string;
-    paymentMethod?: "CASH" | "CARD" | "MOMO" | "MIXED" | undefined;
-    notes?: string | undefined;
     deviceId?: string | undefined;
+    paymentMethod?: "CASH" | "CARD" | "MOMO" | "MIXED" | undefined;
     paymentReference?: string | undefined;
+    notes?: string | undefined;
 }>;
 export declare const VoidSaleRequestSchema: z.ZodObject<{
     reason: z.ZodString;
@@ -217,11 +217,11 @@ export declare const DeviceHeartbeatSchema: z.ZodObject<{
     status: z.ZodOptional<z.ZodEnum<["ACTIVE", "INACTIVE", "MAINTENANCE"]>>;
     metadata: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
 }, "strip", z.ZodTypeAny, {
-    status?: "ACTIVE" | "INACTIVE" | "MAINTENANCE" | undefined;
     metadata?: Record<string, unknown> | undefined;
+    status?: "ACTIVE" | "INACTIVE" | "MAINTENANCE" | undefined;
 }, {
-    status?: "ACTIVE" | "INACTIVE" | "MAINTENANCE" | undefined;
     metadata?: Record<string, unknown> | undefined;
+    status?: "ACTIVE" | "INACTIVE" | "MAINTENANCE" | undefined;
 }>;
 export declare const SyncRequestSchema: z.ZodObject<{
     deviceId: z.ZodString;
@@ -239,13 +239,13 @@ export declare const SyncRequestSchema: z.ZodObject<{
             discount: z.ZodDefault<z.ZodNumber>;
         }, "strip", z.ZodTypeAny, {
             productId: string;
-            unitPrice: number;
             quantity: number;
+            unitPrice: number;
             discount: number;
         }, {
             productId: string;
-            unitPrice: number;
             quantity: number;
+            unitPrice: number;
             discount?: number | undefined;
         }>, "many">;
         paymentMethod: z.ZodEnum<["CASH", "CARD", "MOMO", "MIXED"]>;
@@ -254,29 +254,29 @@ export declare const SyncRequestSchema: z.ZodObject<{
         createdAt: string;
         userId: string;
         branchId: string;
-        paymentMethod: "CASH" | "CARD" | "MOMO" | "MIXED";
         deviceId: string;
+        idempotencyKey: string;
         items: {
             productId: string;
-            unitPrice: number;
             quantity: number;
+            unitPrice: number;
             discount: number;
         }[];
-        idempotencyKey: string;
+        paymentMethod: "CASH" | "CARD" | "MOMO" | "MIXED";
         localId: string;
     }, {
         createdAt: string;
         userId: string;
         branchId: string;
-        paymentMethod: "CASH" | "CARD" | "MOMO" | "MIXED";
         deviceId: string;
+        idempotencyKey: string;
         items: {
             productId: string;
-            unitPrice: number;
             quantity: number;
+            unitPrice: number;
             discount?: number | undefined;
         }[];
-        idempotencyKey: string;
+        paymentMethod: "CASH" | "CARD" | "MOMO" | "MIXED";
         localId: string;
     }>, "many">>;
 }, "strip", z.ZodTypeAny, {
@@ -285,15 +285,15 @@ export declare const SyncRequestSchema: z.ZodObject<{
         createdAt: string;
         userId: string;
         branchId: string;
-        paymentMethod: "CASH" | "CARD" | "MOMO" | "MIXED";
         deviceId: string;
+        idempotencyKey: string;
         items: {
             productId: string;
-            unitPrice: number;
             quantity: number;
+            unitPrice: number;
             discount: number;
         }[];
-        idempotencyKey: string;
+        paymentMethod: "CASH" | "CARD" | "MOMO" | "MIXED";
         localId: string;
     }[] | undefined;
     lastSyncAt?: string | undefined;
@@ -303,15 +303,15 @@ export declare const SyncRequestSchema: z.ZodObject<{
         createdAt: string;
         userId: string;
         branchId: string;
-        paymentMethod: "CASH" | "CARD" | "MOMO" | "MIXED";
         deviceId: string;
+        idempotencyKey: string;
         items: {
             productId: string;
-            unitPrice: number;
             quantity: number;
+            unitPrice: number;
             discount?: number | undefined;
         }[];
-        idempotencyKey: string;
+        paymentMethod: "CASH" | "CARD" | "MOMO" | "MIXED";
         localId: string;
     }[] | undefined;
     lastSyncAt?: string | undefined;
@@ -324,13 +324,13 @@ export declare const ApiResponseSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     success: boolean;
     error?: string | undefined;
-    message?: string | undefined;
     data?: unknown;
+    message?: string | undefined;
 }, {
     success: boolean;
     error?: string | undefined;
-    message?: string | undefined;
     data?: unknown;
+    message?: string | undefined;
 }>;
 export type ApiResponse = z.infer<typeof ApiResponseSchema>;
 export declare function successResponse<T>(data: T, message?: string): {
